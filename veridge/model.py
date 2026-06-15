@@ -76,6 +76,16 @@ KIND_COLORS: dict[Kind, str] = {
     Kind.SESSION: "#92400E",
 }
 
+EDGE_COLORS: dict[EdgeType, str] = {
+    EdgeType.DEFINES: "#16A34A",
+    EdgeType.IMPORTS: "#2563EB",
+    EdgeType.CALLS: "#7C3AED",
+    EdgeType.REFERENCES: "#D97706",
+    EdgeType.MENTIONS: "#DC2626",
+    EdgeType.BELONGS_TO: "#3a4252",
+    EdgeType.TOUCHES: "#92400E",
+}
+
 
 @dataclass
 class Node:

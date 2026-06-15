@@ -14,18 +14,26 @@ import json
 import os
 from pathlib import Path
 
-from veridge.model import KIND_COLORS, Graph
+from veridge.layers import layer_of
+from veridge.model import EDGE_COLORS, KIND_COLORS, Graph
+from veridge.rank import pagerank
 from veridge.store import store_dir
 
 _TEMPLATE = Path(__file__).parent / "ui" / "template.html"
 _TOKEN = "__VERIDGE_DATA__"
 
 
+def _area_of(path: str | None) -> str:
+    return path.split("/", 1)[0] if (path and "/" in path) else "(root)"
+
+
 def _payload(graph: Graph) -> dict:
-    deg = {nid: graph.degree(nid) for nid in graph.nodes}
+    # PageRank drives node size in the viewer, so importance is visible at a glance.
+    scores = pagerank(graph)
     nodes = [{
-        "id": n.id, "kind": n.kind.value, "label": n.label,
-        "path": n.path, "deg": deg.get(n.id, 0),
+        "id": n.id, "kind": n.kind.value, "label": n.label, "path": n.path,
+        "deg": graph.degree(n.id), "score": round(scores.get(n.id, 0.0), 6),
+        "area": _area_of(n.path), "layer": layer_of(n),
     } for n in graph.nodes.values()]
     links = [{"source": e.source, "target": e.target, "type": e.type.value}
              for e in graph.edges]
@@ -34,6 +42,7 @@ def _payload(graph: Graph) -> dict:
         "nodes": nodes,
         "links": links,
         "nodeColors": {k.value: v for k, v in KIND_COLORS.items()},
+        "edgeColors": {k.value: v for k, v in EDGE_COLORS.items()},
     }
 
 
