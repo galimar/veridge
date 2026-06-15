@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "veridge"
+dynamic = ["version"]
+description = "The always-fresh, low-token map of a whole project — docs, code (to the symbol), decisions — ranked by what matters and served to AI and humans alike."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+keywords = ["knowledge-graph", "code-graph", "ai-agents", "context", "mcp", "pagerank", "repo-map"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Libraries",
+    "Typing :: Typed",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "ruff>=0.4"]
+mcp = ["mcp>=1.2"]
+# Optional: symbol-level parsing for languages beyond Python's stdlib `ast`.
+treesitter = ["tree-sitter>=0.21", "tree-sitter-language-pack>=0.2"]
+
+[project.scripts]
+veridge = "veridge.cli:main"
+veridge-mcp = "veridge.mcp_server:main"
+
+[tool.setuptools]
+packages = ["veridge"]
+
+[tool.setuptools.dynamic]
+version = { attr = "veridge.__version__" }
+
+[tool.setuptools.package-data]
+veridge = ["py.typed", "ui/*.html"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "W"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
