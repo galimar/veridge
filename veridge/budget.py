@@ -9,6 +9,7 @@ sizes and edge counts, never file contents.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from veridge.model import Graph, Kind
@@ -33,8 +34,9 @@ def node_row(graph: Graph, nid: str) -> dict[str, Any]:
 
 
 def _row_cost(row: dict[str, Any]) -> int:
-    # Approximate the serialized footprint the assistant pays for.
-    return estimate_tokens(",".join(f"{k}={v}" for k, v in row.items()))
+    # Cost the row as the JSON the assistant actually receives (over the CLI's --json or MCP),
+    # not a looser key=value form — so a "1500-token budget" reflects real consumption.
+    return estimate_tokens(json.dumps(row, ensure_ascii=False))
 
 
 def select_within_budget(

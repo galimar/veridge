@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+from collections import deque
 from typing import Any
 
 from veridge.budget import estimate_tokens, select_within_budget
@@ -52,7 +53,7 @@ def project_map(graph: Graph, *, top: int = 8) -> dict[str, Any]:
 
     counts = graph.counts()
     broken = sum(len(n.meta.get("broken_refs", [])) for n in graph.nodes.values())
-    orphans = sum(1 for n in files if graph.degree(n.id) <= 1)  # only its area edge
+    orphans = sum(1 for n in files if graph.is_orphan(n.id))
     return {
         "project": graph.project,
         "files": len(files),
@@ -233,11 +234,11 @@ def why(graph: Graph, a: str, b: str) -> dict[str, Any]:
         base.update(found=True, length=0,
                     path=[{"id": src, "kind": graph.nodes[src].kind.value}])
         return base
-    # BFS with parent tracking over undirected neighbours.
+    # BFS with parent tracking over undirected neighbours (deque -> O(1) dequeue).
     parent: dict[str, str] = {src: src}
-    queue = [src]
+    queue: deque[str] = deque([src])
     while queue:
-        cur = queue.pop(0)
+        cur = queue.popleft()
         if cur == dst:
             break
         for nb in sorted(graph.neighbors(cur)):

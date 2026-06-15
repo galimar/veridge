@@ -36,21 +36,37 @@ class PyModule:
     symbols: list[PySymbol] = field(default_factory=list)
 
 
-def _called_names(node: ast.AST) -> list[str]:
-    """Bare callee names used anywhere inside ``node`` (Name -> id, Attribute -> attr)."""
+def _callee_name(call: ast.Call) -> str | None:
+    f = call.func
+    if isinstance(f, ast.Name):
+        return f.id
+    if isinstance(f, ast.Attribute):
+        return f.attr
+    return None
+
+
+def _called_names(node: ast.AST, *, skip: frozenset = frozenset()) -> list[str]:
+    """Bare callee names inside ``node``, in first-seen order.
+
+    Subtrees in ``skip`` are not descended into — used so a class symbol collects only its
+    *own* calls, not those inside its methods (which are separate symbols). That avoids the
+    same call being counted on both the class and the method.
+    """
     out: list[str] = []
     seen: set[str] = set()
-    for sub in ast.walk(node):
-        if isinstance(sub, ast.Call):
-            f = sub.func
-            name = None
-            if isinstance(f, ast.Name):
-                name = f.id
-            elif isinstance(f, ast.Attribute):
-                name = f.attr
-            if name and name not in seen:
-                seen.add(name)
-                out.append(name)
+
+    def visit(n: ast.AST) -> None:
+        for child in ast.iter_child_nodes(n):
+            if child in skip:
+                continue
+            if isinstance(child, ast.Call):
+                name = _callee_name(child)
+                if name and name not in seen:
+                    seen.add(name)
+                    out.append(name)
+            visit(child)
+
+    visit(node)
     return out
 
 
@@ -73,11 +89,13 @@ def parse_python(source: str) -> PyModule:
             mod.symbols.append(PySymbol(node.name, node.name, "function",
                                         node.lineno, _called_names(node)))
         elif isinstance(node, ast.ClassDef):
-            mod.symbols.append(PySymbol(node.name, node.name, "class",
-                                        node.lineno, _called_names(node)))
-            for item in node.body:
-                if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    mod.symbols.append(PySymbol(
-                        item.name, f"{node.name}.{item.name}", "function",
-                        item.lineno, _called_names(item)))
+            methods = [b for b in node.body
+                       if isinstance(b, (ast.FunctionDef, ast.AsyncFunctionDef))]
+            mod.symbols.append(PySymbol(
+                node.name, node.name, "class", node.lineno,
+                _called_names(node, skip=frozenset(methods))))
+            for item in methods:
+                mod.symbols.append(PySymbol(
+                    item.name, f"{node.name}.{item.name}", "function",
+                    item.lineno, _called_names(item)))
     return mod

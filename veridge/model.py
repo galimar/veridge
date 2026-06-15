@@ -143,6 +143,8 @@ class Graph:
         # Adjacency indices (id -> list of (other_id, edge_index)).
         self._out: dict[str, list[int]] = {}
         self._in: dict[str, list[int]] = {}
+        # Cached symmetric weight map for ranking; rebuilt lazily, cleared on edge add.
+        self._und_cache: dict[str, dict[str, float]] | None = None
 
     # -- mutation -----------------------------------------------------------
     def add_node(self, node: Node) -> Node:
@@ -161,6 +163,7 @@ class Graph:
         self.edges.append(edge)
         self._out.setdefault(edge.source, []).append(idx)
         self._in.setdefault(edge.target, []).append(idx)
+        self._und_cache = None  # adjacency changed -> invalidate the ranking cache
         return True
 
     # -- queries (O(degree), thanks to the adjacency index) -----------------
@@ -181,8 +184,22 @@ class Graph:
         inc = {self.edges[i].source for i in self._in.get(node_id, [])}
         return out | inc
 
+    def is_orphan(self, node_id: str) -> bool:
+        """True for a file node wired to nothing but its area (only ``belongs_to`` edges).
+
+        The single definition of "orphan", shared by the digest and the gate so the two can
+        never disagree.
+        """
+        n = self.nodes.get(node_id)
+        if n is None or n.kind is not Kind.FILE:
+            return False
+        idxs = self._out.get(node_id, []) + self._in.get(node_id, [])
+        return all(self.edges[i].type is EdgeType.BELONGS_TO for i in idxs)
+
     def undirected_weights(self) -> dict[str, dict[str, float]]:
-        """Symmetric neighbour->weight map used by ranking (built once, O(edges))."""
+        """Symmetric neighbour->weight map used by ranking (built once, then cached)."""
+        if self._und_cache is not None:
+            return self._und_cache
         adj: dict[str, dict[str, float]] = {}
         for e in self.edges:
             w = EDGE_WEIGHT.get(e.type, 0.5)
@@ -190,6 +207,7 @@ class Graph:
             adj.setdefault(e.target, {})
             adj[e.source][e.target] = adj[e.source].get(e.target, 0.0) + w
             adj[e.target][e.source] = adj[e.target].get(e.source, 0.0) + w
+        self._und_cache = adj
         return adj
 
     def counts(self) -> dict[str, dict[str, int]]:

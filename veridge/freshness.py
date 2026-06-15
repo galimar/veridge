@@ -20,7 +20,7 @@ from os.path import splitext
 from pathlib import Path
 
 from veridge.indexer import build_graph
-from veridge.model import EdgeType, Graph, Kind
+from veridge.model import Graph
 from veridge.walk import iter_files
 
 # Text whose content we digest (cheap to hold whole); everything else gets a stat signature.
@@ -52,7 +52,8 @@ def _signature(root: Path, rel: str) -> str | None:
             return "c:" + _content_digest(p)
         except OSError:
             return None
-    return f"d:{st.st_size}-{int(st.st_mtime)}"
+    # Nanosecond mtime: a same-size edit within the same second still registers as a change.
+    return f"d:{st.st_size}-{st.st_mtime_ns}"
 
 
 def build_manifest(root: str | PathLike[str]) -> Manifest:
@@ -119,15 +120,8 @@ def find_broken(graph: Graph) -> list[tuple[str, str]]:
 
 
 def find_orphans(graph: Graph) -> list[str]:
-    """File nodes wired to nothing but their area (no import/reference/call/etc.)."""
-    orphans = []
-    for n in graph.nodes.values():
-        if n.kind is not Kind.FILE:
-            continue
-        edges = graph.out_edges(n.id) + graph.in_edges(n.id)
-        if all(e.type is EdgeType.BELONGS_TO for e in edges):
-            orphans.append(n.id)
-    return sorted(orphans)
+    """File nodes wired to nothing but their area — the digest uses the same predicate."""
+    return sorted(n.id for n in graph.nodes.values() if graph.is_orphan(n.id))
 
 
 def evaluate(graph: Graph, old_manifest: Manifest | None,
