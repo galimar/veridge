@@ -56,6 +56,16 @@ def test_php_symbols_and_calls():
     assert "greet" in by_qual["App.run"].calls
 
 
+def test_vue_script_symbols():
+    src = ('<script setup lang="ts">\n'
+           'export function press(){ return 1 }\n'
+           'function run(){ return press() }\n'
+           '</script>\n<template><button/></template>\n')
+    by_qual = {s.qualname: s for s in extract_symbols(".vue", src)}
+    assert "press" in by_qual and "run" in by_qual
+    assert "press" in by_qual["run"].calls      # call graph inside the <script> block
+
+
 def test_unsupported_extension_returns_none():
     assert extract_symbols(".cobol", "anything") is None
 

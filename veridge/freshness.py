@@ -27,9 +27,9 @@ from veridge.walk import iter_files
 _HASH_CAP = 1_000_000
 _TEXT_EXTS = frozenset({
     ".md", ".markdown", ".rst", ".txt", ".adoc", ".py", ".js", ".ts", ".tsx", ".jsx", ".mjs",
-    ".cjs", ".toml", ".ini", ".cfg", ".conf", ".yaml", ".yml", ".html", ".htm", ".css", ".sql",
-    ".ps1", ".psm1", ".sh", ".bash", ".go", ".rs", ".java", ".c", ".cc", ".cpp", ".h", ".hpp",
-    ".rb", ".php", ".cs",
+    ".cjs", ".vue", ".toml", ".ini", ".cfg", ".conf", ".yaml", ".yml", ".html", ".htm", ".css",
+    ".sql", ".ps1", ".psm1", ".sh", ".bash", ".go", ".rs", ".java", ".c", ".cc", ".cpp", ".h",
+    ".hpp", ".rb", ".php", ".cs",
 })
 
 Manifest = dict[str, str]

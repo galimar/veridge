@@ -24,6 +24,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 from veridge import treesitter
+from veridge.aliases import load_aliases
 from veridge.classify import classify
 from veridge.model import Edge, EdgeType, Graph, Kind, Node
 from veridge.parse_docs import extract_decisions, extract_references
@@ -32,13 +33,17 @@ from veridge.walk import iter_files
 
 AREA_ROOT = "(root)"
 _MAX_READ_BYTES = 5_000_000
+# Files whose imports are scanned with the JS regex (Vue's <script> imports count too).
 _JS_EXTS = {".js", ".ts", ".tsx", ".jsx", ".mjs", ".cjs"}
-# Languages whose symbols tree-sitter can extract (only used when the extra is installed).
-_TS_EXTS = set(treesitter.LANG_BY_EXT)
+_JS_IMPORT_EXTS = _JS_EXTS | {".vue"}
+# Files we extract symbols from via tree-sitter (only when the extra is installed); incl. .vue.
+_TS_EXTS = treesitter.SYMBOL_EXTS
 _DOC_REF_EXTS = {".md", ".markdown", ".rst", ".txt", ".html", ".htm", ".adoc"}
-_JS_RESOLVE_ORDER = ("", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", "/index.ts", "/index.js")
+_JS_RESOLVE_ORDER = ("", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".vue",
+                     "/index.ts", "/index.js", "/index.vue")
+# Capture any specifier; the resolver decides (relative -> path, alias -> tsconfig, else drop).
 _JS_IMPORT_RE = re.compile(
-    r"""(?:import\s[^'"]*?from\s*|import\s*|export\s[^'"]*?from\s*|require\(\s*)['"](\.[^'"]+)['"]"""
+    r"""(?:import\s[^'"]*?from\s*|import\s*|export\s[^'"]*?from\s*|require\(\s*)['"]([^'"]+)['"]"""
 )
 
 
@@ -102,12 +107,26 @@ def _resolve_py(imp: PyImport, from_rel: str, module_map: dict[str, str]) -> lis
     return out
 
 
-def _resolve_js(spec: str, from_rel: str, node_ids: set[str]) -> str | None:
-    base = posixpath.normpath(posixpath.join(posixpath.dirname(from_rel), spec))
+def _try_js_suffixes(base: str, from_rel: str, node_ids: set[str]) -> str | None:
     for suffix in _JS_RESOLVE_ORDER:
         candidate = base + suffix
         if candidate != from_rel and candidate in node_ids:
             return candidate
+    return None
+
+
+def _resolve_js(spec: str, from_rel: str, node_ids: set[str],
+                aliases: list[tuple[str, str]]) -> str | None:
+    """Resolve a JS/TS/Vue import specifier — relative (``./``) or an alias (``@/…``)."""
+    if spec.startswith("."):
+        base = posixpath.normpath(posixpath.join(posixpath.dirname(from_rel), spec))
+        return _try_js_suffixes(base, from_rel, node_ids)
+    for prefix, target in aliases:                       # longest prefix first
+        if spec.startswith(prefix):
+            base = posixpath.normpath(f"{target}/{spec[len(prefix):]}")
+            hit = _try_js_suffixes(base, from_rel, node_ids)
+            if hit:
+                return hit
     return None
 
 
@@ -212,6 +231,7 @@ def build_graph(root: str | os.PathLike[str], *, project: str | None = None,
         stem_index.setdefault(stem, []).append(rel)
     py_files = [r for r in rels if _ext(r) == ".py"]
     module_map = _python_module_map(py_files)
+    alias_rules = load_aliases(root_p)            # JS/TS/Vue import aliases (@/, ~, tsconfig paths)
 
     # 3. Parse contents. Only code and docs are read; data/config/binaries are never opened.
     #    `pending_calls`: (owner_symbol_id, file_rel, [called names]) resolved in pass 4.
@@ -223,10 +243,10 @@ def build_graph(root: str | os.PathLike[str], *, project: str | None = None,
     for rel in rels:
         ext = _ext(rel)
         is_py = ext == ".py"
-        is_js = ext in _JS_EXTS
+        is_js_imports = ext in _JS_IMPORT_EXTS          # JS/TS/Vue: scan imports with the regex
         is_ts = ext in _TS_EXTS and treesitter.available()
         is_doc = ext in _DOC_REF_EXTS
-        if not (is_py or is_js or is_ts or is_doc):
+        if not (is_py or is_js_imports or is_ts or is_doc):
             continue
         text = _read_text(root_p / rel)
         if text is None:
@@ -238,13 +258,13 @@ def build_graph(root: str | os.PathLike[str], *, project: str | None = None,
                     g.add_edge(Edge(rel, tgt, EdgeType.IMPORTS))
             _add_symbols(g, rel, mod.symbols, sym_index, file_syms, pending_calls)
         else:
-            if is_ts:  # symbols + within-project call graph for JS/TS/Go/Rust/Java
+            if is_ts:  # symbols + call graph for JS/TS/Go/Rust/Java/PHP, and Vue <script>
                 syms = treesitter.extract_symbols(ext, text)
                 if syms:
                     _add_symbols(g, rel, syms, sym_index, file_syms, pending_calls)
-            if is_js:  # file-level relative imports (works with or without the extra)
+            if is_js_imports:  # relative + aliased imports (works with or without the extra)
                 for m in _JS_IMPORT_RE.finditer(text):
-                    tgt = _resolve_js(m.group(1), rel, node_ids)
+                    tgt = _resolve_js(m.group(1), rel, node_ids, alias_rules)
                     if tgt:
                         g.add_edge(Edge(rel, tgt, EdgeType.IMPORTS))
         if is_doc:

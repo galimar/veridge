@@ -17,9 +17,9 @@ from veridge.model import Category
 # the primary signal; documents are handled by the fallback so prose keeps a single home.
 _EXTS: dict[Category, tuple[str, ...]] = {
     Category.CODE: (
-        ".py", ".js", ".ts", ".tsx", ".jsx", ".mjs", ".cjs", ".go", ".rs", ".java", ".kt",
-        ".c", ".cc", ".cpp", ".h", ".hpp", ".rb", ".php", ".cs", ".swift", ".scala", ".lua",
-        ".ps1", ".psm1", ".sh", ".bash", ".sql",
+        ".py", ".js", ".ts", ".tsx", ".jsx", ".mjs", ".cjs", ".vue", ".go", ".rs", ".java",
+        ".kt", ".c", ".cc", ".cpp", ".h", ".hpp", ".rb", ".php", ".cs", ".swift", ".scala",
+        ".lua", ".ps1", ".psm1", ".sh", ".bash", ".sql",
     ),
     Category.DATA: (
         ".db", ".sqlite", ".sqlite3", ".duckdb", ".parquet", ".csv", ".tsv", ".jsonl", ".ndjson",

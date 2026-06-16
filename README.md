@@ -64,7 +64,7 @@ thing: **the cheapest accurate context for orienting on a project.**
 ```bash
 pip install veridge                  # core (zero runtime dependencies)
 pip install "veridge[mcp]"           # + the MCP server (for AI assistants)
-pip install "veridge[treesitter]"    # + symbol-level JS/TS/Go/Rust/Java/PHP parsing
+pip install "veridge[treesitter]"    # + symbol-level JS/TS/Go/Rust/Java/PHP/Vue parsing
 ```
 
 [On PyPI](https://pypi.org/project/veridge/). Requires Python 3.10+; runs on Linux, macOS and
@@ -188,11 +188,13 @@ Veridge's ranked graph for free and spend its model only on the semantic layer o
 ## How it works
 
 1. **Index** (read-only) — walk the project; classify each file; extract **symbols, imports
-   and calls** — Python via the stdlib `ast` (zero-deps core), and **JS/TS/Go/Rust/Java/PHP via
-   the optional `[treesitter]` extra**, both feeding one cross-language call graph; extract
-   **doc references** (markdown links, `[[wikilinks]]`, and **plain path mentions in prose** —
-   the part generic tools miss); pull out **decision ids** (`ADR-N`/`RFC-N`/`D-X-N`); add **git
-   sessions**. Everything lands in one typed graph with indexed adjacency, so queries are
+   and calls** — Python via the stdlib `ast` (zero-deps core), and **JS/TS/Go/Rust/Java/PHP/Vue via
+   the optional `[treesitter]` extra** (Vue's `<script>` is parsed as JS/TS), both feeding one
+   cross-language call graph; resolve JS/TS/Vue imports including **aliases** (`@/…`, `~`,
+   `tsconfig`/`jsconfig` `paths`); extract **doc references** (markdown links, `[[wikilinks]]`,
+   and **plain path mentions in prose** — the part generic tools miss); pull out **decision ids**
+   (`ADR-N`/`RFC-N`/`D-X-N`); add **git sessions**. Everything lands in one typed graph with
+   indexed adjacency, so queries are
    O(degree), not O(edges).
 2. **Rank** — PageRank over the type-weighted, undirected graph; personalised PageRank for
    task-aware queries.
@@ -212,7 +214,7 @@ and edges are sorted on serialization, so `graph.json` is reproducible and diffs
 ## Status & roadmap
 
 Alpha. Working today: the unified graph (files + symbols + areas + decisions + sessions),
-**multi-language symbols** (Python in the core; JS/TS/Go/Rust/Java/PHP via the optional
+**multi-language symbols** (Python in the core; JS/TS/Go/Rust/Java/PHP/Vue via the optional
 `[treesitter]` extra), the PageRank ranking, the token-budgeted `focus` query, **`veridge
 impact`** (deterministic blast-radius, incl. `--diff` mode), **deterministic comprehension**
 (`map` layers, `veridge tour`, `veridge why`), the **offline graph viewer** (`veridge view`,
@@ -224,7 +226,7 @@ shipped; see [ROADMAP.md](ROADMAP.md) for what's next.
 
 **`veridge-mcp: command not found`** — install the MCP extra: `pip install "veridge[mcp]"`.
 
-**No symbols for my JS/TS/Go/Rust/Java/PHP files** — install the parsing extra:
+**No symbols for my JS/TS/Go/Rust/Java/PHP/Vue files** — install the parsing extra:
 `pip install "veridge[treesitter]"`. Python needs no extra (stdlib `ast`); other languages do.
 
 **The viewer looks blank** — open the written `.veridge/view.html` in a real browser

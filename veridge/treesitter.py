@@ -2,7 +2,8 @@
 
 The core parses Python with the stdlib ``ast`` (zero dependencies). This module adds
 symbol-level extraction — functions/classes and a within-file call graph — for JavaScript,
-TypeScript, Go, Rust, Java and PHP, **only** when the optional ``[treesitter]`` extra is installed.
+TypeScript, Go, Rust, Java, PHP and Vue SFCs (the ``<script>`` block parsed as JS/TS), **only**
+when the optional ``[treesitter]`` extra is installed.
 Everything degrades gracefully: with the extra absent, :func:`extract_symbols` returns ``None``
 and the indexer falls back to file-level information for those languages.
 
@@ -15,6 +16,7 @@ keeps working across binding versions. The output (:class:`Symbol`) matches
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from functools import cache, lru_cache
 
@@ -23,6 +25,12 @@ LANG_BY_EXT: dict[str, str] = {
     ".ts": "typescript", ".tsx": "tsx",
     ".go": "go", ".rs": "rust", ".java": "java", ".php": "php",
 }
+
+# `.vue` isn't a tree-sitter grammar here; its <script> block is parsed as JS/TS instead.
+SYMBOL_EXTS = frozenset(LANG_BY_EXT) | {".vue"}
+
+_VUE_SCRIPT = re.compile(r"<script\b([^>]*)>(.*?)</script>", re.IGNORECASE | re.DOTALL)
+_VUE_TS = re.compile(r"""lang\s*=\s*['"]?(ts|typescript|tsx)""", re.IGNORECASE)
 
 _DEF_KINDS: dict[str, dict[str, str]] = {
     "javascript": {
@@ -198,15 +206,8 @@ def _walk(node, lang: str, data: bytes, stack: list[Symbol], out: list[Symbol]) 
         stack.pop()
 
 
-def extract_symbols(ext: str, source: str) -> list[Symbol] | None:
-    """Return the symbols defined in ``source`` for the language of ``ext``.
-
-    ``None`` means "not handled here" — the extra is missing, the language is unsupported, or
-    parsing failed — so the caller falls back cleanly.
-    """
-    lang = LANG_BY_EXT.get(ext)
-    if lang is None or not available():
-        return None
+def _symbols_for_lang(lang: str, source: str) -> list[Symbol] | None:
+    """Parse ``source`` with grammar ``lang`` and return its symbols (``None`` on failure)."""
     try:
         parser = _parser(lang)
         data = source.encode("utf-8", "ignore")
@@ -219,3 +220,30 @@ def extract_symbols(ext: str, source: str) -> list[Symbol] | None:
         return out
     except Exception:
         return None
+
+
+def _vue_symbols(source: str) -> list[Symbol]:
+    """Symbols from a Vue SFC: parse each ``<script>`` block as JS/TS, offsetting line numbers."""
+    out: list[Symbol] = []
+    for m in _VUE_SCRIPT.finditer(source):
+        lang = "typescript" if _VUE_TS.search(m.group(1)) else "javascript"
+        offset = source.count("\n", 0, m.start(2))   # lines before the script body
+        for s in _symbols_for_lang(lang, m.group(2)) or ():
+            s.lineno += offset
+            out.append(s)
+    return out
+
+
+def extract_symbols(ext: str, source: str) -> list[Symbol] | None:
+    """Return the symbols defined in ``source`` for the language of ``ext``.
+
+    ``None`` means "not handled here" — the extra is missing, the language is unsupported, or
+    parsing failed — so the caller falls back cleanly. ``.vue`` files are handled by parsing
+    their ``<script>`` block(s) as JavaScript/TypeScript.
+    """
+    if not available():
+        return None
+    if ext == ".vue":
+        return _vue_symbols(source)
+    lang = LANG_BY_EXT.get(ext)
+    return _symbols_for_lang(lang, source) if lang else None

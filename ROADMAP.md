@@ -92,7 +92,7 @@ Several "teaching" features, reached from our graph for free — no model.
 Adds symbol-level parsing beyond Python, **without** touching the zero-deps core.
 
 **Delivered:** [`treesitter.py`](veridge/treesitter.py) extracts symbols + a within-file call
-graph for **JavaScript, TypeScript, Go, Rust, Java and PHP**, behind the optional `[treesitter]`
+graph for **JavaScript, TypeScript, Go, Rust, Java, PHP and Vue SFCs**, behind the optional `[treesitter]`
 extra (`tree-sitter-language-pack`). Its `Symbol` output matches `parse_python`'s, so the
 indexer funnels every language through one `_add_symbols` path — ranking, budget, `impact`,
 `tour` and `why` needed **zero changes** and now span languages. The accessors tolerate both

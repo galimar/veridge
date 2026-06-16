@@ -27,7 +27,7 @@ _DECISION = re.compile(r"\b(?:D-[A-Z]{1,8}-\d{1,5}|ADR-\d{1,5}|RFC-\d{1,5})\b")
 
 _REF_EXTS = frozenset((
     "md markdown rst txt pdf html htm docx adoc "
-    "py js ts tsx jsx mjs cjs go rs java c cc cpp h hpp rb php cs ps1 psm1 sh bash sql "
+    "py js ts tsx jsx mjs cjs vue go rs java c cc cpp h hpp rb php cs ps1 psm1 sh bash sql "
     "toml ini cfg conf yaml yml json jsonl xml csv tsv db sqlite duckdb parquet"
 ).split())
 
