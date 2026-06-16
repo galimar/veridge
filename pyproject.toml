@@ -31,6 +31,12 @@ treesitter = ["tree-sitter>=0.21", "tree-sitter-language-pack>=0.2"]
 veridge = "veridge.cli:main"
 veridge-mcp = "veridge.mcp_server:main"
 
+[project.urls]
+Homepage = "https://github.com/galimar/veridge"
+Repository = "https://github.com/galimar/veridge"
+Issues = "https://github.com/galimar/veridge/issues"
+Changelog = "https://github.com/galimar/veridge/releases"
+
 [tool.setuptools]
 packages = ["veridge"]
 
