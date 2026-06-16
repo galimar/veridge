@@ -49,15 +49,27 @@ It is **not a RAG system**: no embeddings, no vector store, no LLM to build the 
 *structure* and *importance*, which makes it complementary to RAG and purpose-built for one
 thing: **the cheapest accurate context for orienting on a project.**
 
+## Local, private, read-only
+
+- **Local & private** — Veridge runs entirely on your machine. **No network calls, no telemetry,
+  no account**; nothing about your code ever leaves your computer. (The optional `[mcp]` server
+  talks to your assistant over local stdio; that's it.)
+- **Read-only on your sources** — it indexes your files, it never edits them, and it never
+  duplicates their contents. It writes only *derived* data to `.veridge/` (regenerable — add
+  `.veridge/` to your `.gitignore`). The optional `veridge integrate` / `install-hook` commands
+  also write config files, but **only the ones you explicitly ask for**.
+
 ## Install
 
 ```bash
-pip install -e .                      # from a clone
-pip install -e ".[mcp]"               # + optional MCP server
-pip install -e ".[treesitter]"        # + symbol-level JS/TS/Go/Rust/Java parsing
+pip install veridge                  # core (zero runtime dependencies)
+pip install "veridge[mcp]"           # + the MCP server (for AI assistants)
+pip install "veridge[treesitter]"    # + symbol-level JS/TS/Go/Rust/Java parsing
 ```
 
-Requires Python 3.10+. Runtime dependencies of the core: **none**.
+[On PyPI](https://pypi.org/project/veridge/). Requires Python 3.10+; runs on Linux, macOS and
+Windows. The core has **no runtime dependencies** (Python standard library only). From a clone:
+`pip install -e ".[dev,mcp,treesitter]"`.
 
 ## Quickstart
 
@@ -125,7 +137,7 @@ invert the question (what the seed *relies on*).
 Same idea over MCP:
 
 ```bash
-pip install -e ".[mcp]"
+pip install "veridge[mcp]"
 veridge-mcp .      # serves project_map / focus / impact / find / neighbors / health over stdio
 ```
 
@@ -207,6 +219,30 @@ impact`** (deterministic blast-radius, incl. `--diff` mode), **deterministic com
 with `--focus` mode), the anti-drift gate with **live freshness** (`veridge watch` /
 `install-hook`), the CLI and the optional MCP server. The functional roadmap (Phases 0–5) is
 shipped; see [ROADMAP.md](ROADMAP.md) for what's next.
+
+## FAQ
+
+**`veridge-mcp: command not found`** — install the MCP extra: `pip install "veridge[mcp]"`.
+
+**No symbols for my JS/TS/Go/Rust/Java files** — install the parsing extra:
+`pip install "veridge[treesitter]"`. Python needs no extra (stdlib `ast`); other languages do.
+
+**The viewer looks blank** — open the written `.veridge/view.html` in a real browser
+(double-click it). It's a fully offline, self-contained file; some embedded preview panes pause
+the canvas animation.
+
+**Should I commit `.veridge/`?** — no. It's derived and regenerable; add `.veridge/` to your
+`.gitignore`. (`graph.json` is small and deterministic if you ever *do* want to track it.)
+
+**How often should I rebuild?** — `veridge gate` reports if it's stale; `veridge watch` or
+`veridge install-hook` keep it fresh automatically.
+
+**How do I remove it?** — delete `.veridge/`; if you ran `integrate`, remove the marked
+`<!-- veridge:start -->…<!-- veridge:end -->` block from `CLAUDE.md`/`AGENTS.md` and the
+`veridge` entry from `.mcp.json`/`.codex/config.toml`; then `pip uninstall veridge`.
+
+**Does it work on a non-git project?** — yes. Git only adds the `session` nodes and powers
+`impact --diff`; everything else works without it.
 
 ## Development
 
