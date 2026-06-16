@@ -101,6 +101,13 @@ upgrades; with the extra absent, `extract_symbols` returns `None` and those file
 file-level info. 8 tests behind `pytest.importorskip`. 75 tests pass, ruff clean; verified
 end-to-end on a mixed JS+Go project.
 
+**Framework wiring (added):** [`laravel.py`](veridge/laravel.py) recognises the convention-based
+links a pure call graph misses — route files → their controllers and the `EventServiceProvider`'s
+events → their listeners (resolved by `X::class` name to classes already in the graph, emitted as
+`references` edges, so `impact`/`focus` follow them). JS/TS/Vue import resolution now also handles
+**path aliases** (`@/…`, `~`, `tsconfig`/`jsconfig` `paths`). All deterministic, regex/AST-based,
+no runtime introspection.
+
 **Follow-up (not blocking):** cross-file *import* resolution for Go/Rust/Java (today they get
 symbols + calls; JS/TS/Python also get import edges).
 

@@ -23,7 +23,7 @@ import re
 from collections.abc import Iterator
 from pathlib import Path
 
-from veridge import treesitter
+from veridge import laravel, treesitter
 from veridge.aliases import load_aliases
 from veridge.classify import classify
 from veridge.model import Edge, EdgeType, Graph, Kind, Node
@@ -195,6 +195,32 @@ def _add_symbols(g: Graph, rel: str, symbols, sym_index: dict[str, list[str]],
             pending_calls.append((sid, rel, s.calls))
 
 
+def _wire_laravel(g: Graph, laravel_files: list[tuple[str, str]],
+                  sym_index: dict[str, list[str]]) -> None:
+    """Add `references` edges for Laravel route->controller and event->listener wiring."""
+    def class_sym(name: str) -> str | None:
+        ids = [i for i in sym_index.get(name, ())
+               if g.nodes.get(i) is not None and g.nodes[i].meta.get("symbol") == "class"]
+        return ids[0] if len(ids) == 1 else None
+
+    for rel, text in laravel_files:
+        if laravel.is_route_file(rel):
+            for name in laravel.route_class_refs(text):
+                tgt = class_sym(name)
+                if tgt:
+                    g.add_edge(Edge(rel, tgt, EdgeType.REFERENCES))
+        elif laravel.is_event_provider(rel):
+            for event, listeners in laravel.event_listener_pairs(text):
+                ev = class_sym(event)
+                if ev is None:
+                    continue
+                for lname in listeners:
+                    ln = class_sym(lname)
+                    if ln and ln != ev:
+                        # listener depends on (handles) the event -> impact(event) finds it
+                        g.add_edge(Edge(ln, ev, EdgeType.REFERENCES))
+
+
 def build_graph(root: str | os.PathLike[str], *, project: str | None = None,
                 _rels: list[str] | None = None, sessions: bool = True) -> Graph:
     """Index the project at ``root`` and return its graph. Never modifies the project."""
@@ -238,6 +264,7 @@ def build_graph(root: str | os.PathLike[str], *, project: str | None = None,
     sym_index: dict[str, list[str]] = {}          # simple name -> [symbol ids]
     file_syms: dict[str, list[str]] = {}          # file rel -> [symbol ids in it]
     pending_calls: list[tuple[str, str, list[str]]] = []
+    laravel_files: list[tuple[str, str]] = []     # (rel, text) for route / event-provider files
     decisions: set[str] = set()
 
     for rel in rels:
@@ -251,6 +278,8 @@ def build_graph(root: str | os.PathLike[str], *, project: str | None = None,
         text = _read_text(root_p / rel)
         if text is None:
             continue
+        if ext == ".php" and laravel.is_wiring_file(rel):
+            laravel_files.append((rel, text))      # resolved in pass 5, once all symbols exist
         if is_py:
             mod = parse_python(text)
             for imp in mod.imports:
@@ -296,6 +325,10 @@ def build_graph(root: str | os.PathLike[str], *, project: str | None = None,
                 target = cands[0]
             if target and target != owner:
                 g.add_edge(Edge(owner, target, EdgeType.CALLS))
+
+    # 4b. Laravel wiring (best-effort): routes -> controllers, events -> listeners. The links are
+    #     `references` edges to the resolved class symbol, so impact/focus follow them too.
+    _wire_laravel(g, laravel_files, sym_index)
 
     # 5. Sessions from git (optional, best-effort, read-only).
     if sessions:
