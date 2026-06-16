@@ -188,6 +188,16 @@ def cmd_tour(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_integrate(args: argparse.Namespace) -> int:
+    from veridge import integrate as integrator
+    paths = integrator.integrate(args.path, args.assistant)
+    print(f"integrated veridge for {args.assistant}:")
+    for p in paths:
+        print(f"  {p}")
+    print("  (the MCP server needs the extra: pip install \"veridge[mcp]\")")
+    return 0
+
+
 def cmd_export(args: argparse.Namespace) -> int:
     from veridge import export as exporter
     text = exporter.export(_load_or_build(args.path), args.format)
@@ -357,6 +367,12 @@ def main(argv: list[str] | None = None) -> int:
                     help="output format (default: jgf)")
     sp.add_argument("--out", metavar="FILE", help="write to FILE instead of stdout")
     sp.set_defaults(func=cmd_export)
+
+    sp = sub.add_parser("integrate",
+                        help="wire veridge into an assistant (MCP server + steering note)")
+    sp.add_argument("assistant", choices=["claude", "codex"], help="which assistant to set up")
+    sp.add_argument("path", nargs="?", default=".", help="project root (default: .)")
+    sp.set_defaults(func=cmd_integrate)
 
     args = parser.parse_args(argv)
     return int(args.func(args))

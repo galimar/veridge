@@ -76,6 +76,7 @@ veridge gate   .                 # anti-drift: broken refs, stale files, orphans
 veridge watch  .                 # rebuild automatically when files change (poll loop)
 veridge install-hook .           # git post-commit hook that keeps the map fresh
 veridge export .                 # export the graph (jgf / dot / native) for other tools
+veridge integrate claude .       # wire veridge into Claude Code (or: integrate codex)
 veridge stats  .                 # counts by node/edge type
 ```
 
@@ -127,6 +128,19 @@ Same idea over MCP:
 pip install -e ".[mcp]"
 veridge-mcp .      # serves project_map / focus / impact / find / neighbors / health over stdio
 ```
+
+### Wire it into your assistant
+
+The MCP server is standard, so one command sets up either assistant — it registers the server
+(project-local, never a global config) and drops a short steering note that tells the assistant
+to prefer Veridge's ranked, budgeted queries over re-reading files:
+
+```bash
+veridge integrate claude    # writes .mcp.json + a marked block in CLAUDE.md
+veridge integrate codex     # writes .codex/config.toml + a marked block in AGENTS.md
+```
+
+Both are idempotent and won't clobber existing config. (Needs `pip install "veridge[mcp]"`.)
 
 ### Seeing it: the offline viewer
 
