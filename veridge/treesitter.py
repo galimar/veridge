@@ -2,7 +2,7 @@
 
 The core parses Python with the stdlib ``ast`` (zero dependencies). This module adds
 symbol-level extraction — functions/classes and a within-file call graph — for JavaScript,
-TypeScript, Go, Rust and Java, **only** when the optional ``[treesitter]`` extra is installed.
+TypeScript, Go, Rust, Java and PHP, **only** when the optional ``[treesitter]`` extra is installed.
 Everything degrades gracefully: with the extra absent, :func:`extract_symbols` returns ``None``
 and the indexer falls back to file-level information for those languages.
 
@@ -21,7 +21,7 @@ from functools import cache, lru_cache
 LANG_BY_EXT: dict[str, str] = {
     ".js": "javascript", ".jsx": "javascript", ".mjs": "javascript", ".cjs": "javascript",
     ".ts": "typescript", ".tsx": "tsx",
-    ".go": "go", ".rs": "rust", ".java": "java",
+    ".go": "go", ".rs": "rust", ".java": "java", ".php": "php",
 }
 
 _DEF_KINDS: dict[str, dict[str, str]] = {
@@ -44,6 +44,11 @@ _DEF_KINDS: dict[str, dict[str, str]] = {
         "enum_declaration": "class", "method_declaration": "function",
         "constructor_declaration": "function",
     },
+    "php": {
+        "function_definition": "function", "method_declaration": "function",
+        "class_declaration": "class", "interface_declaration": "class",
+        "trait_declaration": "class", "enum_declaration": "class",
+    },
 }
 _DEF_KINDS["tsx"] = _DEF_KINDS["typescript"]
 
@@ -54,10 +59,15 @@ _CALL_TYPES: dict[str, dict[str, str]] = {
     "go": {"call_expression": "function"},
     "rust": {"call_expression": "function", "macro_invocation": "macro"},
     "java": {"method_invocation": "name"},
+    "php": {
+        "function_call_expression": "function", "member_call_expression": "name",
+        "scoped_call_expression": "name", "nullsafe_member_call_expression": "name",
+    },
 }
 
+# PHP names its identifier leaves ``name`` (others use ``identifier`` etc.); harmless elsewhere.
 _IDENT_TYPES = frozenset({
-    "identifier", "property_identifier", "field_identifier", "type_identifier",
+    "identifier", "property_identifier", "field_identifier", "type_identifier", "name",
 })
 
 

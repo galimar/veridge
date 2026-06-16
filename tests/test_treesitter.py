@@ -47,6 +47,15 @@ def test_java_symbols():
     assert "greet" in by_qual["App.run"].calls
 
 
+def test_php_symbols_and_calls():
+    src = ("<?php\nfunction greet($n){ return $n; }\n"
+           "class App { function run(){ return greet(1); } }\n")
+    by_qual = {s.qualname: s for s in extract_symbols(".php", src)}
+    assert {"greet", "App", "App.run"} <= set(by_qual)
+    assert by_qual["App"].kind == "class"
+    assert "greet" in by_qual["App.run"].calls
+
+
 def test_unsupported_extension_returns_none():
     assert extract_symbols(".cobol", "anything") is None
 
