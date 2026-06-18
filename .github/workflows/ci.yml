@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: "0 6 * * 1"   # weekly: catch advisories published after the last commit
 
 permissions:
   contents: read
@@ -44,3 +46,25 @@ jobs:
           pip install -e ".[dev]"
       - name: Test (treesitter tests skip cleanly)
         run: pytest -q
+
+  audit:
+    name: dependency audit (pip-audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # The core has zero runtime deps; the only real surface is the [treesitter] extra.
+      # Freeze exactly that closure (tree-sitter + tree-sitter-language-pack) to a file...
+      - name: Resolve veridge's real dependency closure
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[treesitter]"
+          pip freeze --exclude-editable > audit-deps.txt
+          echo "Auditing:" && cat audit-deps.txt
+      # ...then audit just that file with pip-audit run in isolation (pipx), so pip-audit's
+      # own dependencies never enter the audited set. --strict fails the build on any known
+      # advisory. The report is ours, public and reproducible — not behind a vendor paywall.
+      - name: Audit the closure (pip-audit, isolated)
+        run: pipx run pip-audit -r audit-deps.txt --strict --desc

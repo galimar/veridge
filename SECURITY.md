@@ -15,6 +15,21 @@ Please report security issues **privately**, not as a public issue:
 Include a description, affected version, and a minimal reproduction if possible. You'll get an
 acknowledgement, and a fix or mitigation plan once the report is triaged.
 
+## Dependency auditing
+
+Every CI run (and a weekly scheduled run) audits Veridge's full dependency closure with
+[`pip-audit`](https://github.com/pypa/pip-audit) against the PyPA Advisory Database, and **fails
+on any known advisory**. Because the core has zero runtime dependencies, that closure is just the
+`[treesitter]` extra (`tree-sitter` + `tree-sitter-language-pack`). The audit is part of the
+public [CI workflow](.github/workflows/ci.yml) — an open, reproducible report, not a third-party
+scanner's paywalled claim. To reproduce locally:
+
+```bash
+pip install -e ".[treesitter]"
+pip freeze --exclude-editable > audit-deps.txt
+pipx run pip-audit -r audit-deps.txt --strict --desc
+```
+
 ## Scope notes
 
 Veridge is **read-only on your sources** and has **no runtime dependencies in its core**, which
