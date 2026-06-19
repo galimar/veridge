@@ -20,6 +20,9 @@ import re
 # A reference that looks like a URL is for the web, not a project file — skip it.
 _URL = re.compile(r"^(?:[a-z][a-z0-9+.\-]*:)?//|^mailto:", re.IGNORECASE)
 _MD_LINK = re.compile(r"\]\(\s*<?([^)\s>]+)>?[^)]*\)")
+# HTML carries its references in ``href``/``src`` attributes, not markdown syntax — and may inline
+# minified JS where ``](…)`` patterns abound, so we never run the markdown/prose heuristics on it.
+_HTML_REF = re.compile(r"""(?:href|src)\s*=\s*["']([^"'>\s]{1,300})""", re.IGNORECASE)
 _WIKILINK = re.compile(r"\[\[([^\[\]\n]{1,300})\]\]")
 # A path-shaped token: ``name.ext`` with the extension validated separately, below.
 _PATH_TOKEN = re.compile(r"(?<![\w./\\-])([A-Za-z0-9_][\w\-./\\]*\.[A-Za-z0-9]{1,8})\b")
@@ -39,8 +42,23 @@ def _normalize(target: str) -> str:
     return t.replace("\\", "/").strip()
 
 
-def _scan(text: str):
-    """Yield raw ``(target, kind)`` in document order (links, then wikilinks, then paths)."""
+def _has_ref_ext(token: str) -> bool:
+    """True if ``token``'s extension (after any ``#anchor``/``?query``) is a known ref type."""
+    base = re.split(r"[#?]", token, maxsplit=1)[0]
+    return "." in base and base.rsplit(".", 1)[-1].lower() in _REF_EXTS
+
+
+def _scan(text: str, *, html: bool):
+    """Yield raw ``(target, kind)`` in document order.
+
+    For HTML, take only ``href``/``src`` attribute targets that carry a known extension — never
+    the markdown/wikilink/prose heuristics, which mis-fire on inlined minified JavaScript.
+    """
+    if html:
+        for m in _HTML_REF.finditer(text):
+            if _has_ref_ext(m.group(1)):
+                yield m.group(1), "link"
+        return
     for m in _MD_LINK.finditer(text):
         yield m.group(1), "link"
     for m in _WIKILINK.finditer(text):
@@ -53,15 +71,16 @@ def _scan(text: str):
             yield token, "path"
 
 
-def extract_references(text: str) -> list[tuple[str, str]]:
+def extract_references(text: str, *, html: bool = False) -> list[tuple[str, str]]:
     """Return de-duplicated ``(target, kind)`` in first-seen order (URLs excluded).
 
     ``kind`` is ``"link"``, ``"wikilink"`` or ``"path"``. Links and wikilinks are intentional
     (an unresolved one may be flagged broken); a plain ``"path"`` is used only when it resolves.
+    Set ``html=True`` for ``.html``/``.htm`` so references come from attributes, not prose.
     """
     out: list[tuple[str, str]] = []
     seen: set[str] = set()
-    for raw, kind in _scan(text):
+    for raw, kind in _scan(text, html=html):
         if _URL.match(raw.strip()):
             continue
         target = _normalize(raw)

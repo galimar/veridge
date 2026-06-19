@@ -40,6 +40,24 @@ def test_references_dedupe_first_seen():
     assert [t for t, _ in refs].count("a.py") == 1
 
 
+def test_html_refs_from_attributes_only_ignore_minified_js():
+    """HTML refs come from href/src attributes; inlined minified JS must not produce garbage.
+
+    A bundled doc page often inlines minified JS where `](args)` and `el.src=t` abound; the
+    markdown/prose heuristics mistook those for links, inflating the broken-reference report.
+    """
+    html = (
+        '<a href="./guide.html">g</a><script src="./bundle.js"></script>'
+        '<link href="https://fonts.example/css2?x=1">'
+        '<script>var t=a[s](i+1);r[o]("z","!!!!!");el.src=t;'
+        'location.href="/dashboard";f(g,m,b,h);</script>'
+    )
+    targets = {t for t, _ in extract_references(html, html=True)}
+    assert targets == {"./guide.html", "./bundle.js"}   # only real, extensioned attribute refs
+    # the JS-operator noise the markdown heuristics used to capture is gone:
+    assert not any(j in targets for j in ("i+1", '"z","!!!!!"', "/dashboard", "g,m,b,h"))
+
+
 def test_decisions():
     ids = extract_decisions("See ADR-7 and RFC-12 and D-FOO-3 and ADR-7 again.")
     assert ids == ["ADR-7", "RFC-12", "D-FOO-3"]

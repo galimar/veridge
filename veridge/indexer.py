@@ -359,7 +359,7 @@ def build_graph(root: str | os.PathLike[str], *, project: str | None = None,
                         g.add_edge(Edge(rel, tgt, EdgeType.IMPORTS))
         if is_doc:
             broken: list[str] = []
-            for target, kind in extract_references(text):
+            for target, kind in extract_references(text, html=ext in (".html", ".htm")):
                 resolved, is_broken = _resolve_ref(
                     target, kind, rel, node_ids, basename_index, stem_index)
                 if resolved:
