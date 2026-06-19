@@ -101,6 +101,21 @@ def test_root_level_workspace_package_resolves(tmp_path):
     assert ("consumer.ts", "src/index.ts") in imports
 
 
+def test_link_to_directory_is_not_broken(tmp_path):
+    """A markdown link whose target is a real project directory must not be flagged broken."""
+    from veridge.indexer import build_graph
+
+    (tmp_path / "apps/web/src").mkdir(parents=True)
+    (tmp_path / "apps/web/src/main.ts").write_text("export const x = 1;\n", encoding="utf-8")
+    (tmp_path / "README.md").write_text(
+        "See [the web app](apps/web) and [a real miss](apps/missing).\n", encoding="utf-8")
+
+    g = build_graph(tmp_path, sessions=False)
+    broken = g.nodes["README.md"].meta.get("broken_refs", [])
+    assert "apps/web" not in broken      # real directory -> valid link
+    assert "apps/missing" in broken      # genuinely missing -> still flagged
+
+
 def test_malformed_package_json_does_not_abort_build(tmp_path):
     """A non-object / invalid package.json is skipped, never crashing the index build."""
     from veridge.indexer import build_graph

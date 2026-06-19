@@ -207,6 +207,7 @@ def _unique_hit(index: dict[str, list[str]], key: str, exclude: str) -> str | No
 def _resolve_ref(
     target: str, kind: str, from_rel: str, node_ids: set[str],
     basename_index: dict[str, list[str]], stem_index: dict[str, list[str]],
+    dir_set: set[str],
 ) -> tuple[str | None, bool]:
     """Resolve a documentation reference to a file id. Returns ``(resolved_or_None, is_broken)``."""
     if not target:
@@ -229,6 +230,8 @@ def _resolve_ref(
     if kind == "path" or _is_external(target):
         return None, False
     if as_relative.startswith("../") or as_rooted.startswith("../"):
+        return None, False
+    if as_relative in dir_set or as_rooted in dir_set:   # a link to a real directory is valid
         return None, False
     if kind == "wikilink" and "/" not in target and "." not in base:
         return None, False
@@ -310,11 +313,15 @@ def build_graph(root: str | os.PathLike[str], *, project: str | None = None,
     node_ids = set(g.nodes.keys())
     basename_index: dict[str, list[str]] = {}
     stem_index: dict[str, list[str]] = {}
+    dir_set: set[str] = set()                      # every directory holding a file (for ref checks)
     for rel in rels:
         base = rel.rsplit("/", 1)[-1]
         basename_index.setdefault(base, []).append(rel)
         stem = base.rsplit(".", 1)[0] if "." in base else base
         stem_index.setdefault(stem, []).append(rel)
+        parts = rel.split("/")[:-1]
+        for i in range(1, len(parts) + 1):
+            dir_set.add("/".join(parts[:i]))
     py_files = [r for r in rels if _ext(r) == ".py"]
     module_map = _python_module_map(py_files)
     alias_rules = load_aliases(root_p)            # JS/TS/Vue import aliases (@/, ~, tsconfig paths)
@@ -361,7 +368,7 @@ def build_graph(root: str | os.PathLike[str], *, project: str | None = None,
             broken: list[str] = []
             for target, kind in extract_references(text, html=ext in (".html", ".htm")):
                 resolved, is_broken = _resolve_ref(
-                    target, kind, rel, node_ids, basename_index, stem_index)
+                    target, kind, rel, node_ids, basename_index, stem_index, dir_set)
                 if resolved:
                     g.add_edge(Edge(rel, resolved, EdgeType.REFERENCES))
                 elif is_broken:
