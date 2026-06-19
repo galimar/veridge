@@ -191,7 +191,9 @@ Veridge's ranked graph for free and spend its model only on the semantic layer o
    and calls** — Python via the stdlib `ast` (zero-deps core), and **JS/TS/Go/Rust/Java/PHP/Vue via
    the optional `[treesitter]` extra** (Vue's `<script>` is parsed as JS/TS), both feeding one
    cross-language call graph; resolve JS/TS/Vue imports including **aliases** (`@/…`, `~`,
-   `tsconfig`/`jsconfig` `paths`); follow **Laravel's convention wiring** that calls alone miss
+   `tsconfig`/`jsconfig` `paths`), the **TS/ESM `.js`→`.ts` convention**, and **monorepo
+   workspace packages** (`@scope/pkg` via each `package.json` name); follow **Laravel's
+   convention wiring** that calls alone miss
    — route files → their controllers and events → their listeners (`X::class` references);
    extract **doc references** (markdown links, `[[wikilinks]]`,
    and **plain path mentions in prose** — the part generic tools miss); pull out **decision ids**
