@@ -56,3 +56,60 @@ def test_decisions_and_mentions(graph):
 def test_data_file_not_read_but_indexed(graph):
     assert "data/big.csv" in graph.nodes
     assert graph.nodes["data/big.csv"].category.value == "data"
+
+
+def test_ts_esm_and_workspace_imports(tmp_path):
+    """TS imports resolve the ESM `.js`->`.ts` convention and bare workspace packages.
+
+    NodeNext TypeScript writes the runtime extension in specifiers (`./util.js` for a
+    `util.ts`), and npm/yarn/pnpm monorepos import packages by their package.json `name`
+    (`@scope/kernel`). Both must resolve to real file nodes. Regex-based — no extra needed.
+    """
+    from veridge.indexer import build_graph
+
+    (tmp_path / "packages/kernel/src").mkdir(parents=True)
+    (tmp_path / "packages/kernel/package.json").write_text(
+        '{"name": "@scope/kernel"}', encoding="utf-8")
+    (tmp_path / "packages/kernel/src/index.ts").write_text(
+        "export const k = 1;\n", encoding="utf-8")
+    (tmp_path / "apps/web/src").mkdir(parents=True)
+    (tmp_path / "apps/web/src/util.ts").write_text("export const u = 2;\n", encoding="utf-8")
+    (tmp_path / "apps/web/src/main.ts").write_text(
+        'import { u } from "./util.js";\nimport { k } from "@scope/kernel";\n', encoding="utf-8")
+
+    # ESM `.js` -> `.ts`, and a bare workspace package -> its source entry
+    imports = _edges(build_graph(tmp_path, sessions=False), EdgeType.IMPORTS)
+    assert ("apps/web/src/main.ts", "apps/web/src/util.ts") in imports
+    assert ("apps/web/src/main.ts", "packages/kernel/src/index.ts") in imports
+
+
+def test_root_level_workspace_package_resolves(tmp_path):
+    """A package.json at the repo root (pkg_dir == "") must still resolve by name.
+
+    Regression guard: the package dir is "" there, so a naive join produced absolute
+    "/src/index" candidates that never matched the slash-free node ids.
+    """
+    from veridge.indexer import build_graph
+
+    (tmp_path / "src").mkdir()
+    (tmp_path / "package.json").write_text('{"name": "rootpkg"}', encoding="utf-8")
+    (tmp_path / "src/index.ts").write_text("export const r = 1;\n", encoding="utf-8")
+    (tmp_path / "consumer.ts").write_text(
+        'import { r } from "rootpkg";\n', encoding="utf-8")
+
+    imports = _edges(build_graph(tmp_path, sessions=False), EdgeType.IMPORTS)
+    assert ("consumer.ts", "src/index.ts") in imports
+
+
+def test_malformed_package_json_does_not_abort_build(tmp_path):
+    """A non-object / invalid package.json is skipped, never crashing the index build."""
+    from veridge.indexer import build_graph
+
+    (tmp_path / "a").mkdir()
+    (tmp_path / "a/package.json").write_text("[1, 2, 3]", encoding="utf-8")    # JSON, not an object
+    (tmp_path / "b").mkdir()
+    (tmp_path / "b/package.json").write_text("{not valid", encoding="utf-8")   # not JSON at all
+    (tmp_path / "main.ts").write_text("export const x = 1;\n", encoding="utf-8")
+
+    g = build_graph(tmp_path, sessions=False)   # must not raise
+    assert "main.ts" in g.nodes

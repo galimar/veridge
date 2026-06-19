@@ -17,6 +17,7 @@ The project is never modified.
 
 from __future__ import annotations
 
+import json
 import os
 import posixpath
 import re
@@ -41,6 +42,10 @@ _TS_EXTS = treesitter.SYMBOL_EXTS
 _DOC_REF_EXTS = {".md", ".markdown", ".rst", ".txt", ".html", ".htm", ".adoc"}
 _JS_RESOLVE_ORDER = ("", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".vue",
                      "/index.ts", "/index.js", "/index.vue")
+# TS/ESM (NodeNext) writes the runtime extension in specifiers — `./x.js` means `./x.ts`.
+_JS_RUNTIME_EXTS = {".js", ".jsx", ".mjs", ".cjs"}
+# Where a workspace/monorepo package's source entry typically lives (joined onto the pkg dir).
+_PKG_ENTRY_BASES = ("src/index", "index", "src", "")
 # Capture any specifier; the resolver decides (relative -> path, alias -> tsconfig, else drop).
 _JS_IMPORT_RE = re.compile(
     r"""(?:import\s[^'"]*?from\s*|import\s*|export\s[^'"]*?from\s*|require\(\s*)['"]([^'"]+)['"]"""
@@ -115,19 +120,74 @@ def _try_js_suffixes(base: str, from_rel: str, node_ids: set[str]) -> str | None
     return None
 
 
+def _resolve_rel_base(base: str, from_rel: str, node_ids: set[str]) -> str | None:
+    """Resolve a relative base, honouring the TS/ESM ``.js``-means-``.ts`` convention."""
+    hit = _try_js_suffixes(base, from_rel, node_ids)
+    if hit:
+        return hit
+    stem, ext = posixpath.splitext(base)                 # "./x.js" -> "./x" -> "./x.ts"
+    if ext in _JS_RUNTIME_EXTS:
+        return _try_js_suffixes(stem, from_rel, node_ids)
+    return None
+
+
+def _match_package(spec: str, packages: dict[str, str]) -> tuple[str, str] | None:
+    """Longest package name (from a package.json ``name``) that ``spec`` imports, + subpath."""
+    best: str | None = None
+    for name in packages:
+        if spec != name and not spec.startswith(name + "/"):
+            continue
+        if best is None or len(name) > len(best):
+            best = name
+    if best is None:
+        return None
+    return packages[best], spec[len(best):].lstrip("/")
+
+
 def _resolve_js(spec: str, from_rel: str, node_ids: set[str],
-                aliases: list[tuple[str, str]]) -> str | None:
-    """Resolve a JS/TS/Vue import specifier — relative (``./``) or an alias (``@/…``)."""
+                aliases: list[tuple[str, str]], packages: dict[str, str]) -> str | None:
+    """Resolve a JS/TS/Vue import specifier: relative (``./``), tsconfig alias (``@/…``),
+    or a **workspace/monorepo package** (``@scope/pkg`` resolved via its package.json name)."""
     if spec.startswith("."):
         base = posixpath.normpath(posixpath.join(posixpath.dirname(from_rel), spec))
-        return _try_js_suffixes(base, from_rel, node_ids)
+        return _resolve_rel_base(base, from_rel, node_ids)
     for prefix, target in aliases:                       # longest prefix first
         if spec.startswith(prefix):
             base = posixpath.normpath(f"{target}/{spec[len(prefix):]}")
+            hit = _resolve_rel_base(base, from_rel, node_ids)
+            if hit:
+                return hit
+    matched = _match_package(spec, packages)             # npm/yarn/pnpm workspace import
+    if matched is not None:
+        pkg_dir, sub = matched
+        root = pkg_dir or "."                            # a root-level package.json maps "" -> "."
+        if sub:
+            base = posixpath.normpath(posixpath.join(root, sub))
+            return _resolve_rel_base(base, from_rel, node_ids)
+        for entry in _PKG_ENTRY_BASES:                   # bare package import -> its source entry
+            base = posixpath.normpath(posixpath.join(root, entry))
             hit = _try_js_suffixes(base, from_rel, node_ids)
             if hit:
                 return hit
     return None
+
+
+def _build_package_map(root_p: Path, rels: list[str]) -> dict[str, str]:
+    """Map each workspace package ``name`` (from its package.json) to its directory rel."""
+    out: dict[str, str] = {}
+    for rel in rels:
+        if rel.rsplit("/", 1)[-1] != "package.json":
+            continue
+        text = _read_text(root_p / rel)
+        if not text:
+            continue
+        try:
+            name = json.loads(text).get("name")
+        except Exception:  # a malformed package.json must never abort indexing
+            name = None
+        if isinstance(name, str) and name:
+            out[name] = rel.rsplit("/", 1)[0] if "/" in rel else ""
+    return out
 
 
 def _is_external(target: str) -> bool:
@@ -258,6 +318,7 @@ def build_graph(root: str | os.PathLike[str], *, project: str | None = None,
     py_files = [r for r in rels if _ext(r) == ".py"]
     module_map = _python_module_map(py_files)
     alias_rules = load_aliases(root_p)            # JS/TS/Vue import aliases (@/, ~, tsconfig paths)
+    package_map = _build_package_map(root_p, rels)  # workspace/monorepo package name -> dir
 
     # 3. Parse contents. Only code and docs are read; data/config/binaries are never opened.
     #    `pending_calls`: (owner_symbol_id, file_rel, [called names]) resolved in pass 4.
@@ -293,7 +354,7 @@ def build_graph(root: str | os.PathLike[str], *, project: str | None = None,
                     _add_symbols(g, rel, syms, sym_index, file_syms, pending_calls)
             if is_js_imports:  # relative + aliased imports (works with or without the extra)
                 for m in _JS_IMPORT_RE.finditer(text):
-                    tgt = _resolve_js(m.group(1), rel, node_ids, alias_rules)
+                    tgt = _resolve_js(m.group(1), rel, node_ids, alias_rules, package_map)
                     if tgt:
                         g.add_edge(Edge(rel, tgt, EdgeType.IMPORTS))
         if is_doc:
