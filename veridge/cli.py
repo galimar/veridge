@@ -10,7 +10,7 @@ import argparse
 import json
 import sys
 
-from veridge import __version__, query, store
+from veridge import __version__, doctor, query, store
 from veridge.freshness import build_manifest, evaluate, index
 from veridge.model import Graph
 from veridge.viewer import write_view
@@ -276,6 +276,27 @@ def cmd_gate(args: argparse.Namespace) -> int:
     return 0 if rep.ok else 1
 
 
+def cmd_doctor(args: argparse.Namespace) -> int:
+    checks = doctor.diagnose(args.path)
+    if getattr(args, "json", False):
+        print(json.dumps(
+            [{"name": c.name, "ok": c.ok, "detail": c.detail, "blocking": c.blocking}
+             for c in checks], indent=2, ensure_ascii=False))
+    else:
+        for c in checks:
+            mark = "ok" if c.ok else ("XX" if c.blocking else "--")
+            print(f"  [{mark}] {c.name}: {c.detail}")
+        blocking = [c for c in checks if c.blocking and not c.ok]
+        gaps = [c for c in checks if not c.ok and not c.blocking]
+        if blocking:
+            print(f"not usable yet — {blocking[0].detail}")
+        elif gaps:
+            print(f"usable; {len(gaps)} optional setup step(s) above")
+        else:
+            print("all set")
+    return 1 if any(c.blocking and not c.ok for c in checks) else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     # Print UTF-8 regardless of the console's locale (Windows defaults to cp1252, which
     # would mangle the '·' separators). Best-effort: ignore if the stream can't reconfigure.
@@ -304,6 +325,11 @@ def main(argv: list[str] | None = None) -> int:
                     help="counts + verdict only, no per-reference detail (handy for large repos)")
     sp.add_argument("--json", action="store_true", help="emit JSON (for CI)")
     sp.set_defaults(func=cmd_gate)
+
+    sp = sub.add_parser("doctor", help="check Veridge setup here (index, extras, MCP wiring)")
+    sp.add_argument("path", nargs="?", default=".", help="project root (default: .)")
+    sp.add_argument("--json", action="store_true", help="emit JSON")
+    sp.set_defaults(func=cmd_doctor)
 
     sp = sub.add_parser("map", help="compact project digest (PageRank-ranked)")
     sp.add_argument("path", nargs="?", default=".", help="project root (default: .)")

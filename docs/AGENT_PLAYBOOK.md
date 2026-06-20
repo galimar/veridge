@@ -42,6 +42,9 @@ doc references, git sessions — under `.veridge/`, and serves **ranked, token-b
 | `health` | Anti-drift status: broken refs, stale files, orphans. |
 
 CLI equivalents (outside MCP): `veridge build|stats|gate|map|focus|impact|why|tour|view`.
+**If the MCP tools aren't available in your client, use the CLI — every tool has a CLI twin.**
+Run **`veridge doctor`** to check setup here (index built? extras installed? MCP wired for
+Claude *and* Codex?) — it prints the exact next command for anything missing.
 
 ---
 
@@ -60,6 +63,8 @@ Greenfield, or Veridge was never set up here.
 5. **Auto-freshness:** `veridge install-hook` (drops a `post-commit` rebuild hook).
 6. **Commit the config** so collaborators inherit it: `.mcp.json`, `.codex/config.toml`,
    `CLAUDE.md`, `AGENTS.md`, `.gitignore`. **Never** commit `.veridge/`.
+7. **Verify:** run `veridge doctor` — every line should be `[ok]` (index, extras, both assistants
+   wired, index gitignored).
 
 Report what you did and what the human must approve (e.g. trusting the project MCP server).
 

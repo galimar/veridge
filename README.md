@@ -89,6 +89,7 @@ veridge watch  .                 # rebuild automatically when files change (poll
 veridge install-hook .           # git post-commit hook that keeps the map fresh
 veridge export .                 # export the graph (jgf / dot / native) for other tools
 veridge integrate claude .       # wire veridge into Claude Code (or: integrate codex)
+veridge doctor .                 # is veridge set up here? index, extras, MCP wiring
 veridge stats  .                 # counts by node/edge type
 ```
 
