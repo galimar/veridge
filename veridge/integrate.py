@@ -37,6 +37,14 @@ understand the codebase, prefer the **`veridge` MCP tools** — they return rank
 - `find` / `neighbors` / `why` / `tour` — locate, inspect, explain a path, walk the key files.
 
 If `health` reports the index is stale, rebuild it with `veridge build .`.
+
+**Rules:** Veridge is read-only on your sources and writes only `.veridge/` (gitignored — never
+commit it); never add `veridge` to this project's dependencies; rebuild after code changes before
+trusting `impact`/`focus`; don't open issues / push / send anything outside the repo on your own —
+draft it and ask the human. Claude and Codex share this one graph, so coordinate via it and git.
+
+Full protocol (new vs existing project, multi-agent, feedback): `docs/AGENT_PLAYBOOK.md` in the
+Veridge repo (<https://github.com/galimar/veridge>).
 {_END}
 """
 
