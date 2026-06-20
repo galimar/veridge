@@ -268,8 +268,11 @@ def cmd_gate(args: argparse.Namespace) -> int:
         print("no graph found — run 'veridge build' first", file=sys.stderr)
         return 2
     rep = evaluate(g, old, build_manifest(args.path))
-    print(rep.summary())
-    print("OK: fresh and clean" if rep.ok else "DRIFT: rebuild and/or fix the issues above")
+    if getattr(args, "json", False):
+        print(json.dumps(rep.to_dict(), indent=2, ensure_ascii=False))
+    else:
+        print(rep.summary(detail=not getattr(args, "summary", False)))
+        print("OK: fresh and clean" if rep.ok else "DRIFT: rebuild and/or fix the issues above")
     return 0 if rep.ok else 1
 
 
@@ -290,11 +293,17 @@ def main(argv: list[str] | None = None) -> int:
     for name, fn, help_text in [
         ("build", cmd_build, "index the project -> .veridge/graph.json"),
         ("stats", cmd_stats, "counts by node/edge type"),
-        ("gate", cmd_gate, "anti-drift check (broken refs, stale files, orphans)"),
     ]:
         sp = sub.add_parser(name, help=help_text)
         sp.add_argument("path", nargs="?", default=".", help="project root (default: .)")
         sp.set_defaults(func=fn)
+
+    sp = sub.add_parser("gate", help="anti-drift check (broken refs, stale files, orphans)")
+    sp.add_argument("path", nargs="?", default=".", help="project root (default: .)")
+    sp.add_argument("--summary", action="store_true",
+                    help="counts + verdict only, no per-reference detail (handy for large repos)")
+    sp.add_argument("--json", action="store_true", help="emit JSON (for CI)")
+    sp.set_defaults(func=cmd_gate)
 
     sp = sub.add_parser("map", help="compact project digest (PageRank-ranked)")
     sp.add_argument("path", nargs="?", default=".", help="project root (default: .)")

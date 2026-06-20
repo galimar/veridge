@@ -98,16 +98,28 @@ class GateReport:
         """Green only when nothing must be fixed (no broken refs, no stale files)."""
         return not self.broken and self.stale_count == 0
 
-    def summary(self) -> str:
+    def summary(self, *, detail: bool = True) -> str:
         added, removed, changed = (self.stale[k] for k in ("added", "removed", "changed"))
         lines = [
             f"broken references: {len(self.broken)}",
             f"stale files: {self.stale_count} "
             f"(+{len(added)} / -{len(removed)} / ~{len(changed)})",
             f"orphans: {len(self.orphans)} (info)",
-            *(f"  [broken] {src} -> {tgt}" for src, tgt in self.broken[:20]),
         ]
+        if detail:                                  # the per-reference list (capped); off for CI
+            lines.extend(f"  [broken] {src} -> {tgt}" for src, tgt in self.broken[:20])
         return "\n".join(lines)
+
+    def to_dict(self) -> dict:
+        """Machine-readable gate result for ``--json`` / CI: counts, status, and the broken list."""
+        return {
+            "ok": self.ok,
+            "broken": len(self.broken),
+            "stale": self.stale_count,
+            "orphans": len(self.orphans),
+            "broken_refs": [[src, tgt] for src, tgt in self.broken],
+            "stale_files": self.stale,
+        }
 
 
 def find_broken(graph: Graph) -> list[tuple[str, str]]:

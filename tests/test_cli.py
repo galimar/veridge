@@ -40,6 +40,27 @@ def test_gate_cli_red_on_broken(project, capsys):
     rc = cli.main(["gate", str(project)])
     out = capsys.readouterr().out
     assert "broken references: 1" in out
+    assert "[broken]" in out                    # default shows the per-reference detail
+    assert rc == 1
+
+
+def test_gate_summary_omits_detail(project, capsys):
+    cli.main(["build", str(project)])
+    rc = cli.main(["gate", str(project), "--summary"])
+    out = capsys.readouterr().out
+    assert "broken references: 1" in out        # counts still shown
+    assert "[broken]" not in out                # but not the per-reference list
+    assert rc == 1                              # still red, same exit code
+
+
+def test_gate_json(project, capsys):
+    import json as _json
+    cli.main(["build", str(project)])
+    capsys.readouterr()                          # discard build output before capturing the JSON
+    rc = cli.main(["gate", str(project), "--json"])
+    data = _json.loads(capsys.readouterr().out)
+    assert data["ok"] is False and data["broken"] == 1
+    assert isinstance(data["broken_refs"], list) and len(data["broken_refs"]) == 1
     assert rc == 1
 
 
