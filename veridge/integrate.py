@@ -54,12 +54,25 @@ def _write(path: Path, text: str) -> None:
 
 
 def _add_directive(doc: Path) -> None:
-    """Append the steering block to ``doc`` (create it if absent; skip if already present)."""
+    """Write the steering block into ``doc``: refresh it in place if present, else append.
+
+    Re-running ``integrate`` keeps the note current — the block between the markers is replaced
+    with the latest directive, so an already-wired project picks up new guidance. Surrounding
+    content is untouched, and the operation is idempotent (no-op when already up to date).
+    """
     existing = doc.read_text(encoding="utf-8", errors="ignore") if doc.exists() else ""
-    if _START in existing:
-        return
+    block = _DIRECTIVE.strip()
+    start = existing.find(_START)
+    if start != -1:
+        end = existing.find(_END, start)
+        if end != -1:                                    # replace the existing block in place
+            updated = existing[:start] + block + existing[end + len(_END):]
+            if updated != existing:
+                _write(doc, updated)
+            return
+        # an opening marker with no close is corrupt — fall through and append a fresh block
     prefix = existing.rstrip() + "\n\n" if existing.strip() else ""
-    _write(doc, prefix + _DIRECTIVE)
+    _write(doc, prefix + block + "\n")
 
 
 def integrate_claude(root: str | os.PathLike[str]) -> list[Path]:

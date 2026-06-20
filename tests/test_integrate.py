@@ -29,6 +29,23 @@ def test_integrate_claude_merges_and_is_idempotent(tmp_path):
     assert claude.count("veridge:start") == 1         # directive not duplicated
 
 
+def test_integrate_refreshes_stale_directive_in_place(tmp_path):
+    """Re-running integrate replaces an old directive block, preserving surrounding content."""
+    stale = (
+        "# My project\n\nIntro.\n\n"
+        f"{integrate._START}\nOLD veridge note that should be replaced\n{integrate._END}\n\n"
+        "## Footer kept below\n"
+    )
+    (tmp_path / "CLAUDE.md").write_text(stale, encoding="utf-8")
+    integrate.integrate_claude(tmp_path)
+    claude = (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "OLD veridge note" not in claude              # stale content gone
+    assert "AGENT_PLAYBOOK.md" in claude                 # current directive written
+    assert claude.count(integrate._START) == 1           # still a single block
+    assert claude.startswith("# My project")             # content before the block kept
+    assert "## Footer kept below" in claude              # content after the block kept
+
+
 def test_integrate_claude_rejects_bad_json(tmp_path):
     (tmp_path / ".mcp.json").write_text("{ not json", encoding="utf-8")
     with pytest.raises(RuntimeError):
