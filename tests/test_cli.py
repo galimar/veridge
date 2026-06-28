@@ -35,6 +35,15 @@ def test_impact_cli_deps_direction(project, capsys):
     assert "src/util.py#greet" in out
 
 
+def test_no_command_prints_full_help(capsys):
+    rc = cli.main([])                            # `veridge` with no subcommand
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "usage: veridge" in out
+    assert "build" in out and "doctor" in out    # the command list, not a terse error
+    assert ".gitignore" in out                   # epilog surfaces the exclusion mechanism
+
+
 def test_gate_cli_red_on_broken(project, capsys):
     cli.main(["build", str(project)])
     rc = cli.main(["gate", str(project)])

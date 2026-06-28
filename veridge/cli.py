@@ -307,9 +307,12 @@ def main(argv: list[str] | None = None) -> int:
             pass
 
     parser = argparse.ArgumentParser(
-        prog="veridge", description="Veridge — the always-fresh, low-token map of a project.")
+        prog="veridge", description="Veridge — the always-fresh, low-token map of a project.",
+        epilog="Files: in a git repo, indexing honours .gitignore (via git). Add a .veridgeignore "
+               "(one glob per line) for extra excludes. Run 'veridge <command> -h' for a command's "
+               "options.")
     parser.add_argument("--version", action="version", version=f"veridge {__version__}")
-    sub = parser.add_subparsers(dest="cmd", required=True)
+    sub = parser.add_subparsers(dest="cmd", metavar="<command>")
 
     for name, fn, help_text in [
         ("build", cmd_build, "index the project -> .veridge/graph.json"),
@@ -410,6 +413,9 @@ def main(argv: list[str] | None = None) -> int:
     sp.set_defaults(func=cmd_integrate)
 
     args = parser.parse_args(argv)
+    if not hasattr(args, "func"):        # no command given -> show the full help, not a terse error
+        parser.print_help()
+        return 0
     return int(args.func(args))
 
 

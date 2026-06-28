@@ -188,8 +188,10 @@ Veridge's ranked graph for free and spend its model only on the semantic layer o
 
 ## How it works
 
-1. **Index** (read-only) — walk the project; classify each file; extract **symbols, imports
-   and calls** — Python via the stdlib `ast` (zero-deps core), and **JS/TS/Go/Rust/Java/PHP/Vue via
+1. **Index** (read-only) — walk the project (honouring **`.gitignore`** in a git repo, plus the
+   built-in vendor/binary skips and an optional **`.veridgeignore`**); classify each file; extract
+   **symbols, imports and calls** — Python via the stdlib `ast` (zero-deps core), and
+   **JS/TS/Go/Rust/Java/PHP/Vue via
    the optional `[treesitter]` extra** (Vue's `<script>` is parsed as JS/TS), both feeding one
    cross-language call graph; resolve JS/TS/Vue imports including **aliases** (`@/…`, `~`,
    `tsconfig`/`jsconfig` `paths`), the **TS/ESM `.js`→`.ts` convention**, and **monorepo
