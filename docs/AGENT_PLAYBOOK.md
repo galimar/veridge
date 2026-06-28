@@ -110,6 +110,66 @@ Do **not** wire anything yet. First prove Veridge earns its place.
 
 ---
 
+## 3b. Enforcement (Claude Code hooks) — make the rules actually stick
+
+The `CLAUDE.md`/`AGENTS.md` note is a **nudge**: an agent can ignore it. For real enforcement, use
+**Claude Code hooks** in `.claude/settings.json` — the *harness* runs these, not the model, so they
+can't be skipped. (Codex has no settings.json-hook equivalent; it relies on the `AGENTS.md` note,
+so the strict patterns below are Claude-side.) The hook command runs in a shell with
+`$CLAUDE_PROJECT_DIR` pointing at the repo (`%CLAUDE_PROJECT_DIR%` on a Windows `cmd` shell).
+
+### A. Stay fresh automatically — rebuild after every edit *(recommended, low-friction)*
+After each `Edit`/`Write`/`MultiEdit`, rebuild the index in the background so `impact`/`focus` are
+never stale. `async: true` means Claude doesn't wait for it.
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      { "matcher": "Edit|Write|MultiEdit",
+        "hooks": [ { "type": "command",
+                     "command": "veridge build \"$CLAUDE_PROJECT_DIR\"",
+                     "async": true, "timeout": 120 } ] }
+    ]
+  }
+}
+```
+
+### B. Remind every turn — keep veridge in the loop
+Inject a one-line reminder alongside each user prompt so the agent reaches for the map before
+grepping/editing.
+
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      { "hooks": [ { "type": "command", "command":
+        "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"Before reading/grepping or editing, use the veridge MCP tools (project_map/focus/impact). The index auto-rebuilds on edits.\"}}'" } ] }
+    ]
+  }
+}
+```
+
+### C. Strict guardrail — block edits while the index is stale
+Hard-stop an `Edit`/`Write` when the index is **stale** (out of date vs the code), telling Claude
+to rebuild first. It blocks only on staleness, **not** on broken references (those are project
+debt, not a reason to stop). Needs `veridge gate --json` (0.7.3+) and `jq`.
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "Edit|Write",
+        "hooks": [ { "type": "command", "command":
+          "test \"$(veridge gate --json \"$CLAUDE_PROJECT_DIR\" | jq .stale)\" = 0 || { echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Veridge index is stale — run: veridge build . — then retry.\"}}'; exit 2; }" } ] }
+    ]
+  }
+}
+```
+
+Most teams want **A** (and optionally **B**); add **C** only if you want a hard stop. A applies the
+"stay fresh" rule; B+C apply the "consult veridge before writing code" rule.
+
 ## 4. Feedback: stats / project errors / Veridge bugs / fixes
 
 Veridge has **no telemetry and never phones home** (deterministic, local, zero-deps — by design).
