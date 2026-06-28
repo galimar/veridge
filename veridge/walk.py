@@ -20,15 +20,18 @@ def _git_ls_files(root: Path) -> list[str] | None:
     """Posix-relative paths git would show (tracked + untracked-not-ignored), honouring
     ``.gitignore``. ``None`` when ``root`` isn't a git repo or git can't be run."""
     try:
+        # Bytes, not text=True: `git -z` emits raw UTF-8 paths with no newline translation; a
+        # locale decode (e.g. cp1252 on Windows) would mojibake accented names and silently drop
+        # them. os.fsdecode round-trips to the real on-disk name so the is_file() check below works.
         proc = subprocess.run(
             ["git", "-C", str(root), "ls-files", "--cached", "--others",
              "--exclude-standard", "-z"],
-            capture_output=True, text=True, timeout=30, check=False)
+            capture_output=True, timeout=30, check=False)
     except (OSError, subprocess.SubprocessError):
         return None
     if proc.returncode != 0:
         return None
-    return [p for p in proc.stdout.split("\0") if p]
+    return [os.fsdecode(p) for p in proc.stdout.split(b"\0") if p]
 
 
 def _skip_rel(rel: str, rules: IgnoreRules) -> bool:
@@ -64,8 +67,11 @@ def iter_files(root: Path) -> list[str]:
     rules = IgnoreRules.load(root)
     git_files = _git_ls_files(root)
     if git_files is not None:
+        # Keep files and symlinks (even dangling, as the fs walk did); drop submodule gitlink
+        # dirs and deleted-but-staged entries that git lists but aren't real files on disk.
         found = [rel for rel in git_files
-                 if not _skip_rel(rel, rules) and (root / rel).is_file()]
+                 if not _skip_rel(rel, rules)
+                 and ((root / rel).is_symlink() or (root / rel).is_file())]
     else:
         found = _walk_fs(root, rules)
     return sorted(found)

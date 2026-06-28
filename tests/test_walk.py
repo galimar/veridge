@@ -40,6 +40,19 @@ def test_iter_files_indexes_tracked_file_even_if_pattern_would_ignore(tmp_path):
     assert "keep.py" in files                              # tracked wins, git lists it
 
 
+def test_iter_files_handles_non_ascii_names(tmp_path):
+    # git ls-files -z emits raw UTF-8; a locale decode would mojibake this and silently drop it.
+    try:
+        _git(tmp_path, "init")
+    except (OSError, subprocess.CalledProcessError):
+        pytest.skip("git not available")
+    name = "relazione_città.py"
+    (tmp_path / name).write_text("x = 1\n", encoding="utf-8")
+    _git(tmp_path, "add", name)
+    files = iter_files(tmp_path)
+    assert name in files                                   # accented tracked file is indexed
+
+
 def test_iter_files_without_git_walks_fs(tmp_path):
     # no git repo -> filesystem walk; the built-in vendor-dir skip still applies
     (tmp_path / "app.py").write_text("x = 1\n", encoding="utf-8")
